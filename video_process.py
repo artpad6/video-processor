@@ -13,6 +13,7 @@ class Processor(Enum):
 # Constants to adjust between runs
 DIFF_THRESHOLD = 0.03
 PIXEL_THRESHOLD = 15
+CHISQUARE_THRESHOLD = 3
 
 
 # Main method for taking input video and processing frames one by one
@@ -56,7 +57,7 @@ def output_file_name(processor):
     if processor is Processor.DIFF_WITH_THRESHOLDING:
         return f'DIFF_{DIFF_THRESHOLD} _THRESHOLD_{PIXEL_THRESHOLD}.txt'
     else:
-        return f'histogram.txt'  # Fix this based on histogram options
+        return f'HISTOGRAM_{CHISQUARE_THRESHOLD}.txt'  # Fix this based on histogram options
 
 
 # Calls the appropriate processor
@@ -89,13 +90,14 @@ def frame_diff_with_threshold(frame, prev_frame, total_pixels):
     return fraction_changed >= DIFF_THRESHOLD
 
 
-# TO DO
+# Calculate histogram for each frame and do chi-squared comparison between them
+# Return whether result is above chi-square threshold
 def compare_histogram(frame, prev_frame):
-    hist = cv2.calcHist([cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)],[0],None,[256],[0,256])
-    prev_hist = cv2.calcHist([cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)],[0],None,[256],[0,256])
-    cv2.compareHist(hist, prev_hist, cv2.HISTCMP_CORREL)
-    # to be filled out but for now just send all frames
-    return True
+    # Create histograms with 256 bins
+    hist = cv2.calcHist([cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)], [0], None, [256], [0, 256])
+    prev_hist = cv2.calcHist([cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)], [0], None, [256], [0, 256])
+    result = cv2.compareHist(hist, prev_hist, cv2.HISTCMP_CHISQR)
+    return result >= CHISQUARE_THRESHOLD
 
 
 # Change input video or processor here
