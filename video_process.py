@@ -11,7 +11,8 @@ class Processor(Enum):
 
 
 # Constants to adjust between runs
-DIFF_THRESHOLD = 0.03
+VIDEO_FILENAME = 'car_video.mp4'
+DIFF_THRESHOLD = 0.005
 PIXEL_THRESHOLD = 15
 CHISQUARE_THRESHOLD = 3
 
@@ -50,14 +51,14 @@ def process_video(video_path, processor):
             f.write("%s\n" % item)
 
 
-# Returns name of output file based on processor and adjustable values
+# Returns name of output file based on input video, processor, and adjustable values
 def output_file_name(processor):
     if processor is Processor.DIFF:
-        return f'DIFF_{DIFF_THRESHOLD}.txt'
+        return f'{VIDEO_FILENAME}_DIFF_{DIFF_THRESHOLD}.txt'
     if processor is Processor.DIFF_WITH_THRESHOLDING:
-        return f'DIFF_{DIFF_THRESHOLD} _THRESHOLD_{PIXEL_THRESHOLD}.txt'
+        return f'{VIDEO_FILENAME}_DIFF_{DIFF_THRESHOLD} _THRESHOLD_{PIXEL_THRESHOLD}.txt'
     else:
-        return f'HISTOGRAM_{CHISQUARE_THRESHOLD}.txt'  # Fix this based on histogram options
+        return f'{VIDEO_FILENAME}_HISTOGRAM_{CHISQUARE_THRESHOLD}.txt'
 
 
 # Calls the appropriate processor
@@ -100,6 +101,6 @@ def compare_histogram(frame, prev_frame):
     return result >= CHISQUARE_THRESHOLD
 
 
-# Change input video or processor here
+# Change processor here
 if __name__ == '__main__':
-    process_video(video_path='car_video.mp4', processor=Processor.DIFF)
+    process_video(video_path=VIDEO_FILENAME, processor=Processor.DIFF)
