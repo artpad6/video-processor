@@ -14,6 +14,7 @@ class Processor(Enum):
     DIFF = 1
     DIFF_WITH_THRESHOLDING = 2
     HISTOGRAM = 3
+    EDGE_DIFF = 4
 
 
 class DiffProcessor:
@@ -35,6 +36,8 @@ class DiffProcessor:
         num_frames_used = 0
         index = 0
 
+        start_time = cv2.getTickCount()
+
         # Loop through frames, keeping a list of indexes of selected frames
         while cap.isOpened():
             if not ret:
@@ -48,13 +51,17 @@ class DiffProcessor:
 
             ret, frame = cap.read()
 
-        # Calculate percentage of frames selected and write indexes of those to a txt file
+        end_time = cv2.getTickCount()
+        seconds_per_frame = ((end_time - start_time) / cv2.getTickFrequency())/frame_count
+
+        # Calculate percentage of frames selected and write indexes of those to a json file
         cap.release()
-        logging.info(f'{self.section}@{video_path}: {(num_frames_used/frame_count)*100:.2f}% ({num_frames_used}/{frame_count})')
+        logging.info(f'{self.section}@{video_path}: {(num_frames_used/frame_count)*100:.2f}% ({num_frames_used}/{frame_count}), {seconds_per_frame:.2f} sec/frame')
         return {
             'selected_frames': output_list,
             'total_frame_count': frame_count,
             'selected_frame_count': num_frames_used,
+            'seconds_per_frame': seconds_per_frame,
         }
 
 
@@ -105,6 +112,33 @@ class Histogram(DiffProcessor):
         return result >= self.chi_square_thresh
 
 
+class EdgeDiff(DiffProcessor):
+
+    def __init__(self, section):
+        self.section = section.name
+        self.diff_thresh = section.getfloat('DiffThresh')
+        self.min_val = section.getint('MinVal')
+        self.max_val = section.getint('MaxVal')
+
+    def should_send_frame(self, frame, prev_frame, total_pixels):
+
+        # Calculate edges using tunable parameters (at what intensity is it considered an edge)?
+        # Note: this is for testing the accuracy; when implementing, should save prev_frame's edges instead
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray_filtered = cv2.bilateralFilter(gray, 7, 50, 50)
+        edges_filtered = cv2.Canny(gray_filtered, self.min_val, self.max_val)
+
+        prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
+        prev_gray_filtered = cv2.bilateralFilter(prev_gray, 7, 50, 50)
+        prev_edges_filtered = cv2.Canny(prev_gray_filtered, self.min_val, self.max_val)
+
+        # Compare the edges of each frame
+        frame_diff = cv2.absdiff(edges_filtered, prev_edges_filtered)
+        changed_pixels = cv2.countNonZero(frame_diff)
+        fraction_changed = changed_pixels / total_pixels
+        return fraction_changed >= self.diff_thresh
+
+
 def init_diff_processor(section: configparser.SectionProxy):
     """Returns a DiffProcessor object specified by `section`."""
     processor_id = section.getint('Processor')
@@ -114,6 +148,8 @@ def init_diff_processor(section: configparser.SectionProxy):
         return DiffWithPixel(section)
     elif Processor(processor_id) == Processor.HISTOGRAM:
         return Histogram(section)
+    elif Processor(processor_id) == Processor.EDGE_DIFF:
+        return EdgeDiff(section)
     raise NotImplementedError
 
 
