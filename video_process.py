@@ -2,6 +2,7 @@ import argparse
 import configparser
 import json
 import logging
+import imutils
 from enum import Enum
 from pathlib import Path
 
@@ -15,6 +16,7 @@ class Processor(Enum):
     DIFF_WITH_THRESHOLDING = 2
     HISTOGRAM = 3
     EDGE_DIFF = 4
+    MIN_MOTION_AREA = 5
 
 
 class DiffProcessor:
@@ -139,6 +141,39 @@ class EdgeDiff(DiffProcessor):
         return fraction_changed >= self.diff_thresh
 
 
+class MinMotionArea(DiffProcessor):
+
+    def __init__(self, section):
+        self.section = section.name
+        self.min_area = section.getint('MinArea')
+
+    def should_send_frame(self, frame, prev_frame, total_pixels):
+        # Convert frames to gray and blur them
+        # Note: this is for testing the accuracy; when implementing, should save prev_frame blurred instead
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (21, 21), 0)
+
+        prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
+        prev_gray = cv2.GaussianBlur(prev_gray, (21, 21), 0)
+
+        frame_delta = cv2.absdiff(gray, prev_gray)
+        thresh = cv2.threshold(frame_delta, 25, 255, cv2.THRESH_BINARY)[1]
+
+        thresh = cv2.dilate(thresh, None, iterations=2)
+        contours = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL,
+                                cv2.CHAIN_APPROX_SIMPLE)
+        contours = imutils.grab_contours(contours)
+
+        # loop over the contours
+        area_found = False
+        for c in contours:
+            # send frame only if a contour area was larger than min
+            if cv2.contourArea(c) > self.min_area:
+                area_found = True
+                break
+        return area_found
+
+
 def init_diff_processor(section: configparser.SectionProxy):
     """Returns a DiffProcessor object specified by `section`."""
     processor_id = section.getint('Processor')
@@ -150,6 +185,8 @@ def init_diff_processor(section: configparser.SectionProxy):
         return Histogram(section)
     elif Processor(processor_id) == Processor.EDGE_DIFF:
         return EdgeDiff(section)
+    elif Processor(processor_id) == Processor.MIN_MOTION_AREA:
+        return MinMotionArea(section)
     raise NotImplementedError
 
 
