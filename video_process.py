@@ -145,7 +145,7 @@ class MinMotionArea(DiffProcessor):
 
     def __init__(self, section):
         self.section = section.name
-        self.min_area = section.getint('MinArea')
+        self.min_area_fraction = section.getfloat('MinArea')
 
     def should_send_frame(self, frame, prev_frame, total_pixels):
         # Convert frames to gray and blur them
@@ -168,7 +168,7 @@ class MinMotionArea(DiffProcessor):
         area_found = False
         for c in contours:
             # send frame only if a contour area was larger than min
-            if cv2.contourArea(c) > self.min_area:
+            if (cv2.contourArea(c)/total_pixels) > self.min_area_fraction:
                 area_found = True
                 break
         return area_found
